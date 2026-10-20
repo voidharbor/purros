@@ -6,7 +6,7 @@ import vm from 'node:vm';
 
 const window = {};
 vm.runInNewContext(readFileSync(new URL('../../static/cat.js', import.meta.url), 'utf8'), { window, Math });
-const MOODS = ['idle', 'listening', 'thinking', 'working', 'searching', 'drawing', 'playing', 'done', 'oops', 'sleeping'];
+const MOODS = ['idle', 'listening', 'thinking', 'working', 'searching', 'drawing', 'playing', 'done', 'oops', 'sleeping', 'hello'];
 const COLORS = { fg: '#8ef0a6', hi: '#d4ffdf', dim: '#55a06a' };
 
 function fakeCtx() {
@@ -40,4 +40,9 @@ test('uses the colors it is given', () => {
   const c = fakeCtx();
   window.PurrCat.draw(c, 'done', 0.4, { fg: '#ffb547', hi: '#ffe4b8', dim: '#ad7a2e' });
   assert.ok([...c.px.values()].includes('#ffb547'));
+});
+
+test('hello waves a paw: the frames differ over time', () => {
+  const frame = t => { const c = fakeCtx(); window.PurrCat.draw(c, 'hello', t, COLORS); return [...c.px.keys()].sort().join(';'); };
+  assert.notEqual(frame(0.05), frame(0.2));
 });

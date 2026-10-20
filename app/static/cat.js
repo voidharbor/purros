@@ -3,7 +3,7 @@
 (function () {
   const G = 16;
   const KEY = { '#': 'fg', '+': 'hi', '.': 'dim' };
-  const MOODS = ['idle', 'listening', 'thinking', 'working', 'searching', 'drawing', 'playing', 'done', 'oops', 'sleeping'];
+  const MOODS = ['idle', 'listening', 'thinking', 'working', 'searching', 'drawing', 'playing', 'done', 'oops', 'sleeping', 'hello'];
   let C = { fg: '#8ef0a6', hi: '#d4ffdf', dim: '#55a06a' };
 
   function painter(ctx) {
@@ -70,6 +70,7 @@
     else if (s === 'done') { mode = 'happy'; tail = CAT_TAILS[2]; }
     else if (s === 'oops') { X = 2; mode = 'small'; mirror = true; paws = 'push'; }
     else if (s === 'sleeping') { Y += 2; mode = 'closed'; tail = [[8, 9], [9, 9], [10, 9], [11, 9]]; }
+    else if (s === 'hello') { mode = 'happy'; ears = 'up'; mirror = true; tail = CAT_TAILS[Math.floor(t * 3) % 3]; paws = 'wave'; }
     if (s === 'drawing') PROPS.easel(p, 11, 5, t);
     p.pts(mirror ? tail.map(([x, y]) => [7 - x, y]) : tail, X, Y);
     const rows = CAT.slice(); if (ears === 'twitch') rows[0] = '       #';
@@ -80,6 +81,12 @@
     if (paws === 'type') { const a = Math.floor(t * 8) % 2; p.px(a ? X + 1 : X + 6, Y + 10); p.px(a ? X + 2 : X + 5, Y + 10, 'dim'); }
     else if (paws === 'chin') p.px(X, Y + 6, 'hi');
     else if (paws === 'reach') { p.px(X + 8, Y + 6); p.px(X + 9, Y + 5, 'hi'); }
+    else if (paws === 'wave') {
+      /* a raised paw swinging side to side, about four waves a second */
+      const a = Math.floor(t * 8) % 2;
+      p.px(X + 8, Y + 6); p.px(X + 9, Y + 5);
+      p.pts(a ? [[10, 4], [10, 3], [11, 3]] : [[9, 4], [9, 3], [10, 3]], X, Y, 'hi');
+    }
     else if (paws === 'push') {
       const k = (t % 2.6) / 2.6;
       for (let x = 12; x <= 15; x++) p.px(x, 10, 'dim');

@@ -68,7 +68,8 @@
   }
   tick(); setInterval(tick, 15000);
   function greet(name) {
-    const h = new Date().getHours(), n = name ? ', ' + name.toLowerCase() : '';
+    if (!name) return 'hello there.';
+    const h = new Date().getHours(), n = ', ' + name.toLowerCase();
     if (h >= 5 && h < 12) return 'good morning' + n + '.';
     if (h >= 12 && h < 17) return 'good afternoon' + n + '.';
     if (h >= 17 && h < 23) return 'good evening' + n + '.';
@@ -305,6 +306,7 @@
         busy = Math.max(0, busy - 1);
         outBlock = null;
         if (pendingAsk) { pendingAsk.box.classList.add('answered'); pendingAsk = null; }
+        if (m.id === quietId && afterBootList) { afterBootList = false; addLine('what should I call you?', 'dim'); awaitingName = true; }
         gap();
         break;
     }
@@ -333,6 +335,14 @@
     }
     busy++;
     send({ t: 'run', id: 'r' + (++runSeq), text });
+  }
+
+  /* a command PurrOS runs by itself: no echoed prompt line */
+  let afterBootList = false, quietId = null;
+  function runQuiet(text) {
+    busy++;
+    quietId = 'r' + (++runSeq);
+    send({ t: 'run', id: quietId, text });
   }
 
   function completions(m) {
@@ -432,17 +442,22 @@
   let bootDone = false;
   const bootStart = performance.now();
   function finishBoot(hello) {
-    const wait = Math.max(0, 1500 - (performance.now() - bootStart));
-    setTimeout(() => { bootMood = 'listening'; $('#bootWord').textContent = 'hi'; }, Math.max(0, wait - 600));
+    const wait = Math.max(0, 1700 - (performance.now() - bootStart));
+    const name = hello.settings.name;
+    setTimeout(() => { bootMood = 'hello'; $('#bootWord').textContent = name ? 'hello, ' + name.toLowerCase() : 'hello'; }, Math.max(0, wait - 900));
     setTimeout(() => {
       $('#boot').classList.add('gone');
       setTimeout(() => { bootDone = true; $('#boot').remove(); }, 600);
       add('<span class="hi">PurrOS</span> <span class="dim">' + esc(hello.version) + '</span>', 'line');
-      const name = hello.settings.name;
-      if (name) addLine(greet(name) + ' type anything, plain words are fine.', 'dim');
-      else { addLine('hi. what should I call you?', 'dim'); awaitingName = true; }
+      /* the cat says hello and keeps waving a moment, then shows what's in the folder it woke up in */
+      addLine('meow. ' + greet(name) + (name ? ' type anything, plain words are fine.' : ''), 'dim');
       gap();
-      showMood('idle', 'ready');
+      showMood('hello', 'hello');
+      holdUntil = performance.now() + 2600;
+      clearTimeout(backTimer);
+      backTimer = setTimeout(() => queueMood('idle', 'ready'), 2600);
+      afterBootList = !name;
+      runQuiet('show all files');
       focusInput(); drawInput();
     }, wait);
   }

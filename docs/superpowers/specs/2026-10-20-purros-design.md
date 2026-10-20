@@ -17,6 +17,7 @@ A small, mostly text operating system with the cozy feel of an old terminal comp
 - Animated icon that changes with what you are doing, small and uninvasive.
 - Minimalist UI but capable: opens pictures, videos, software.
 - For both his own PC and other people ("Both maybe").
+- On launch, logged into the user account, it lists the current directory and the cat says hello ("make sure it lists the current directory when launched and logged into user account and the cat says hello").
 - Approved look: mockup 2 (https://claude.ai/artifact/74AwyH4SDdMzphHzoeMsr4), PurrOS cat, ten moods.
 
 ## Goals
@@ -78,6 +79,7 @@ All **(my call)** unless noted.
 | picture saved, long job finished | done | done |
 | error, not found | oops | hmm |
 | 45 s with no input (my call; the mockup used 12 s for the demo) | sleeping | napping |
+| boot, then about 2.6 s on the main screen (Josh's ask) | hello (waves a paw) | hello |
 
 ## Left to the builder
 
