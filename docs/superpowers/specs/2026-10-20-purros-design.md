@@ -81,6 +81,10 @@ All **(my call)** unless noted.
 | 45 s with no input (my call; the mockup used 12 s for the demo) | sleeping | napping |
 | boot, then about 2.6 s on the main screen (Josh's ask) | hello (waves a paw) | hello |
 
+## Later (not v1)
+
+- A custom SeaShell for PurrOS (Josh, 10/20: "also we will eventually make a custom seashell for purros"). SeaShell is Josh's own terminal (github.com/voidharbor/seashell); v1 keeps xterm.js panes inside the stream.
+
 ## Left to the builder
 
 Exact phrasebook coverage beyond the list above, wording of messages (lowercase, short, dry, the mockup's voice), the boot animation, audio plumbing, how settings look inside the stream.
