@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+# purrfwd: lets the host reach purrd for tests and screenshots.
+#
+# purrd only listens on 127.0.0.1 inside the VM, and QEMU's user-mode network
+# delivers forwarded host ports (127.0.0.1:17777 on the host) to the guest's
+# NIC address, 10.0.2.15. This relays 10.0.2.15:7777 to 127.0.0.1:7777 and only
+# accepts QEMU's host-side address (10.0.2.2). 10.0.2.15 exists only under
+# QEMU user networking, so on any other network setup this never binds.
+
+name="purrfwd"
+description="Relay QEMU's forwarded port to purrd"
+
+supervisor=supervise-daemon
+command=/usr/bin/socat
+command_args="TCP-LISTEN:7777,bind=10.0.2.15,reuseaddr,fork,range=10.0.2.2/32 TCP:127.0.0.1:7777"
+command_user="nobody:nobody"
+respawn_delay=2
+respawn_max=0
+
+depend() {
+	need net
+	after purrd
+}

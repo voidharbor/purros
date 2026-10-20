@@ -1,0 +1,17 @@
+{
+  "BackgroundModeEnabled": false,
+  "BrowserSignin": 0,
+  "DefaultBrowserSettingEnabled": false,
+  "DownloadDirectory": "/home/purr/Downloads",
+  "MetricsReportingEnabled": false,
+  "PasswordManagerEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "PromptForDownloadLocation": false,
+  "SafeBrowsingProtectionLevel": 0,
+  "SearchSuggestEnabled": false,
+  "SpellcheckEnabled": false,
+  "SyncDisabled": true,
+  "TranslateEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false
+}

@@ -1,0 +1,13 @@
+#!/bin/sh
+# Unmute QEMU's virtual sound card so videos and music are audible.
+# Runs in the background so it never holds up boot.
+(
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		if amixer -q sset Master 100% unmute 2>/dev/null; then
+			amixer -q sset PCM 100% unmute 2>/dev/null
+			amixer -q sset Front 100% unmute 2>/dev/null
+			exit 0
+		fi
+		sleep 1
+	done
+) </dev/null >/dev/null 2>&1 &

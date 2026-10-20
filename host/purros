@@ -1,0 +1,189 @@
+#!/bin/bash
+# purros: start the PurrOS VM.
+#
+#   purros              open PurrOS in a window (returns when the window closes)
+#   purros --headless   start without a window and return; for tests and scripts
+#   purros --stop       shut PurrOS down (clean, via the guest agent; forced after 20 s)
+#   purros --status     say whether it is running
+#   purros --console    serial debug shell inside the VM (ctrl+] to leave)
+#
+# Both modes expose, on this machine only:
+#   ~/.cache/purros/qmp.sock     QMP (host/vmshot.py uses it)
+#   ~/.cache/purros/serial.sock  serial console; everything is also logged to serial.log
+#   127.0.0.1:17777              purrd inside the VM (PURROS_PORT changes it)
+#
+# Environment: PURROS_DISK (default <repo>/vm/out/purros.qcow2), PURROS_MEM (MB),
+# PURROS_CPUS, PURROS_PORT, PURROS_AUDIO=pa|none (default: pa in the window,
+# none headless), PURROS_STATE (socket folder, for a second VM on a disk copy).
+set -euo pipefail
+
+SELF=$(readlink -f "${BASH_SOURCE[0]}")
+HOST_DIR=$(dirname "$SELF")
+REPO=$(dirname "$HOST_DIR")
+DISK=${PURROS_DISK:-$REPO/vm/out/purros.qcow2}
+STATE=${PURROS_STATE:-${XDG_CACHE_HOME:-$HOME/.cache}/purros}
+QMP=$STATE/qmp.sock
+QGA=$STATE/qga.sock
+SERIAL_SOCK=$STATE/serial.sock
+SERIAL_LOG=$STATE/serial.log
+PIDFILE=$STATE/qemu.pid
+HOST_PIDFILE=$STATE/purr-host.pid
+PORT=${PURROS_PORT:-17777}
+MEM=${PURROS_MEM:-4096}
+CPUS=${PURROS_CPUS:-4}
+PULSE=/mnt/wslg/PulseServer
+ORIG_ARGS=("$@")
+
+die() { echo "purros: $*" >&2; exit 1; }
+say() { echo "purros: $*"; }
+
+port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+vm_pid() {
+	local pid
+	[ -f "$PIDFILE" ] || return 1
+	pid=$(cat "$PIDFILE" 2>/dev/null) || return 1
+	[ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && echo "$pid"
+}
+
+ensure_kvm() {
+	[ -e /dev/kvm ] || die "/dev/kvm is missing (nested virtualization is off in WSL)"
+	[ -r /dev/kvm ] && [ -w /dev/kvm ] && return 0
+	# Added to the kvm group after this shell started: pick the group up with sg.
+	if [ -z "${PURROS_SG:-}" ] && id -nG "$USER" | tr ' ' '\n' | grep -qx kvm; then
+		export PURROS_SG=1
+		exec sg kvm -c "$(printf '%q ' "$SELF" "${ORIG_ARGS[@]}")"
+	fi
+	die "no access to /dev/kvm; run $REPO/host/install.sh (adds you to the kvm group)"
+}
+
+start_purr_host() {
+	local script=$HOST_DIR/purr-host.py
+	[ -f "$script" ] || return 0
+	port_open 7790 && return 0
+	setsid python3 "$script" >>"$STATE/purr-host.log" 2>&1 </dev/null &
+	echo $! >"$HOST_PIDFILE"
+}
+
+stop_purr_host() { # only the copy this launcher started
+	local pid
+	[ -f "$HOST_PIDFILE" ] || return 0
+	pid=$(cat "$HOST_PIDFILE")
+	rm -f "$HOST_PIDFILE"
+	if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && grep -q purr-host "/proc/$pid/cmdline" 2>/dev/null; then
+		kill "$pid" 2>/dev/null || true
+	fi
+}
+
+qemu_args() { # qemu_args window|headless
+	ARGS=(
+		-name PurrOS,process=purros -nodefaults
+		-enable-kvm -cpu host -smp "$CPUS" -m "$MEM" -machine q35,vmport=off
+		-drive "file=$DISK,if=virtio,format=qcow2,cache=writeback,discard=unmap,snapshot=off"
+		-netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$PORT-:7777"
+		-device virtio-net-pci,netdev=net0,romfile=
+		-device virtio-tablet -device virtio-keyboard
+		-qmp "unix:$QMP,server=on,wait=off"
+		-chardev "socket,id=ser0,path=$SERIAL_SOCK,server=on,wait=off,logfile=$SERIAL_LOG,logappend=off"
+		-serial chardev:ser0
+		-chardev "socket,id=qga0,path=$QGA,server=on,wait=off"
+		-device virtio-serial-pci -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0
+		-rtc base=utc -vga none
+		-pidfile "$PIDFILE"
+	)
+	local audio=${PURROS_AUDIO:-}
+	if [ -z "$audio" ]; then
+		audio=none
+		[ "$1" = window ] && [ -S "$PULSE" ] && audio=pa
+		# WSLg's audio server sometimes wedges; the guest's sound card then stalls
+		# and so does every video (Chromium keeps time by the audio clock).
+		if [ "$audio" = pa ] && command -v pactl >/dev/null &&
+			! timeout 2 pactl -s "unix:$PULSE" list short sinks >/dev/null 2>&1; then
+			say "sound off: the WSL audio server is not answering (wsl --shutdown resets it)"
+			audio=none
+		fi
+	fi
+	if [ "$audio" = pa ]; then
+		ARGS+=(-audiodev "pa,id=snd0,server=unix:$PULSE")
+	else
+		ARGS+=(-audiodev none,id=snd0)
+	fi
+	ARGS+=(-device ich9-intel-hda -device hda-output,audiodev=snd0)
+	# virtio-gpu without the legacy VGA part: BIOS and boot loader text never
+	# reach the screen. (virtio-gpu-gl was tried: under WSLg the guest still
+	# falls back to llvmpipe and screendump stops working.)
+	if [ "$1" = window ]; then
+		ARGS+=(-device virtio-gpu-pci,xres=1280,yres=800
+			-display gtk,show-menubar=off,show-tabs=off,zoom-to-fit=off)
+	else
+		ARGS+=(-device virtio-gpu-pci,xres=1280,yres=800 -display none -daemonize)
+	fi
+}
+
+start() { # start window|headless
+	local mode=$1 pid rc
+	command -v qemu-system-x86_64 >/dev/null || die "QEMU is missing; run $REPO/host/install.sh"
+	[ -f "$DISK" ] || die "no disk at $DISK; build it with: sudo $REPO/vm/build.sh"
+	pid=$(vm_pid) && die "already running (pid $pid); stop it with: purros --stop"
+	ensure_kvm
+	mkdir -p "$STATE"
+	rm -f "$QMP" "$SERIAL_SOCK" "$QGA"
+	start_purr_host
+	qemu_args "$mode"
+	if [ "$mode" = headless ]; then
+		qemu-system-x86_64 "${ARGS[@]}" 2>"$STATE/qemu.log" || { cat "$STATE/qemu.log" >&2; die "QEMU failed to start"; }
+		say "running headless (pid $(cat "$PIDFILE")): purrd on 127.0.0.1:$PORT, QMP $QMP"
+		return 0
+	fi
+	rc=0
+	qemu-system-x86_64 "${ARGS[@]}" 2>"$STATE/qemu.log" || rc=$?
+	stop_purr_host
+	rm -f "$PIDFILE" "$QMP" "$SERIAL_SOCK" "$QGA"
+	if [ "$rc" != 0 ]; then
+		cat "$STATE/qemu.log" >&2
+		die "QEMU exited with $rc"
+	fi
+}
+
+stop() {
+	local pid
+	if ! pid=$(vm_pid); then
+		say "not running"
+		stop_purr_host
+		return 0
+	fi
+	python3 "$HOST_DIR/vmshot.py" powerdown 2>/dev/null || true
+	for _ in $(seq 100); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
+	if kill -0 "$pid" 2>/dev/null; then
+		say "no clean shutdown after 20 s, forcing"
+		python3 "$HOST_DIR/vmshot.py" quit 2>/dev/null || kill "$pid" 2>/dev/null || true
+		for _ in $(seq 25); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done
+	fi
+	rm -f "$PIDFILE" "$QMP" "$SERIAL_SOCK" "$QGA"
+	stop_purr_host
+	say "stopped"
+}
+
+console() {
+	vm_pid >/dev/null || die "not running"
+	command -v socat >/dev/null || die "needs socat: sudo apt-get install socat"
+	say "serial console, ctrl+] to leave"
+	socat "-,raw,echo=0,escape=0x1d" "UNIX-CONNECT:$SERIAL_SOCK"
+	echo
+}
+
+main() {
+	case "${1:-}" in
+		"") start window ;;
+		--headless) start headless ;;
+		--stop) stop ;;
+		--status)
+			if pid=$(vm_pid); then say "running (pid $pid)"; else say "not running"; exit 1; fi ;;
+		--console) console ;;
+		-h|--help) sed -n '2,17p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+		*) die "unknown option $1 (try --help)" ;;
+	esac
+}
+
+# One line, so editing this file while a window is open cannot confuse bash.
+main "$@"; exit $?

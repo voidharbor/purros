@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+# purrd: the PurrOS service (page, websocket, commands) on 127.0.0.1:7777.
+
+name="purrd"
+description="PurrOS service"
+
+supervisor=supervise-daemon
+command=/usr/bin/python3
+command_args="-m purrd"
+command_user="purr:purr"
+directory="/home/purr"
+output_log="/var/log/purrd.log"
+error_log="/var/log/purrd.log"
+respawn_delay=1
+respawn_max=0
+supervise_daemon_args="--env PYTHONPATH=/opt/purros --env HOME=/home/purr --env USER=purr --env LANG=C.UTF-8 --env PYTHONUNBUFFERED=1 --env PYTHONDONTWRITEBYTECODE=1"
+
+depend() {
+	need localmount
+	after networking
+}
+
+start_pre() {
+	checkpath -f -o purr:purr -m 0644 /var/log/purrd.log
+}
