@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+vm/out/
+vm/cache/
+app/static/vendor/
+*.pyc
