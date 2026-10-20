@@ -32,7 +32,7 @@
     if (m !== 'sleeping') lastInput = performance.now();
   }
   /* every mood but idle stays up at least a moment, so quick jobs still show what happened */
-  function queueMood(m, w) { moodQ.push([m, w]); pumpMood(); }
+  function queueMood(m, w) { moodQ = PurrMoodQueue.push(moodQ, m, w, mood); pumpMood(); }
   function pumpMood() {
     if (moodTimer) return;
     const now = performance.now();
