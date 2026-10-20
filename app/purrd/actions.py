@@ -142,7 +142,7 @@ async def a_list(ctx, path=None, all=False):
     if n == 0:
         summary = f"{label} is empty."
     elif target == ctx.home:
-        summary = f"{n} {'thing' if n == 1 else 'things'} in your home folder. tap one to open it."
+        summary = f"{n} {'thing' if n == 1 else 'things'} in your home folder. click one to open it."
     else:
         summary = f"{n} {'thing' if n == 1 else 'things'} in {label}."
     await ctx.emit({"t": "list", "items": items, "summary": summary})
@@ -497,7 +497,7 @@ async def a_help(ctx):
     await ctx.line("plain words work. a few things to try:")
     await ctx.emit({"t": "tips", "items": HELP_TIPS})
     await ctx.line("windows, mac and linux commands work too: dir, ls, ipconfig, open, cls.", "dim")
-    await ctx.line("tap anything in a list to open it. ctrl+c stops a command.", "dim")
+    await ctx.line("click anything in a list to open it. ctrl+c stops a command.", "dim")
 
 
 async def a_clear(ctx):

@@ -53,7 +53,7 @@ class ActionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn({"t": "line", "text": "ran: ls ~", "cls": "ran"}, r.msgs)
         lst = r.of("list")[0]
         self.assertEqual([i["name"] for i in lst["items"]][:2], ["Documents", "Downloads"])
-        self.assertEqual(lst["summary"], "8 things in your home folder. tap one to open it.")
+        self.assertEqual(lst["summary"], "8 things in your home folder. click one to open it.")
         self.assertEqual(r.moods()[-1], "idle")
 
     async def test_list_folder_counts(self):
@@ -239,3 +239,12 @@ class ActionsTest(unittest.IsolatedAsyncioTestCase):
     async def test_refuse(self):
         r = await self.do("format c:")
         self.assertIn("format wipes a whole disk. I won't do that from here.", r.lines())
+
+
+class WordingTest(unittest.TestCase):
+    def test_no_touch_words_on_a_computer(self):
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent
+        for f in list((root / "purrd").glob("*.py")) + [root / "static/purr.js", root / "static/index.html"]:
+            self.assertIsNone(re.search(r"\btap", f.read_text(), re.I), f"{f.name} says tap; PurrOS is a computer, say click")

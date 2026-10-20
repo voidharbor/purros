@@ -418,7 +418,7 @@
     requestAnimationFrame(drawInput);
   });
 
-  /* taps on anything live in the stream */
+  /* clicks on anything live in the stream */
   term.addEventListener('click', e => {
     wake();
     const b = e.target.closest('[data-open],[data-run]');

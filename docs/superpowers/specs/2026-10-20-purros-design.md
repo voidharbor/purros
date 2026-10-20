@@ -4,7 +4,7 @@
 
 ## What it is
 
-A small, mostly text operating system with the cozy feel of an old terminal computer, for people who have never used a terminal and for experts alike. You type plain words ("show all files") or any Windows, Linux or Mac command, and it does the thing. It makes pictures the way Jarvis does. It runs in a VM. Its mascot is a small pixel cat that acts out what the computer is doing. Terry Davis and TempleOS are the inspiration: one person's whole computer, everything on screen live and tappable.
+A small, mostly text operating system with the cozy feel of an old terminal computer, for people who have never used a terminal and for experts alike. You type plain words ("show all files") or any Windows, Linux or Mac command, and it does the thing. It makes pictures the way Jarvis does. It runs in a VM. Its mascot is a small pixel cat that acts out what the computer is doing. Terry Davis and TempleOS are the inspiration: one person's whole computer, everything on screen live and clickable.
 
 ## Josh's words (decided)
 
@@ -24,7 +24,7 @@ A small, mostly text operating system with the cozy feel of an old terminal comp
 
 1. Boots in a VM straight into the PurrOS screen. No login prompt, no boot text, no desktop.
 2. Plain words and real commands from any of the three systems land in the same place. A dim line under each answer shows the real command it ran.
-3. Every file and folder name on screen is tappable. Pictures, videos, music, text and PDFs open inline in the stream.
+3. Every file and folder name on screen is clickable. Pictures, videos, music, text and PDFs open inline in the stream.
 4. "draw ..." makes a picture with klein on the PC GPU and saves it to Pictures.
 5. Interactive programs (nano, vim, htop, python) open in an inline terminal pane inside the stream.
 6. The cat lives in the top left corner at 32 px with one status word, and moves through idle, listening, thinking, working, searching, drawing, playing, done, oops and sleeping.
