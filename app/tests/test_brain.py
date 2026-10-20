@@ -60,6 +60,11 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(headers["Authorization"], "Bearer sk-1")
         self.assertEqual(body["response_format"], {"type": "json_object"})
 
+    def test_prompt_wants_the_joke_not_a_promise(self):
+        # Live model, history of ordinary commands: "tell me a joke" came back as only "here's one to brighten the terminal."
+        self.assertIn("the whole joke, fact or answer goes in say", brain.SYSTEM)
+        self.assertIn("never only announce it", brain.SYSTEM)
+
     async def test_json_inside_prose_or_fences(self):
         text = 'Sure!\n```json\n{"say": "here", "run": "df -h"}\n```'
         async with FakeServer(reply_json({"message": {"content": text}})) as s:
