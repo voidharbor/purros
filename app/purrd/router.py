@@ -100,8 +100,8 @@ ENGLISH: list[tuple[str, Callable[[re.Match], Intent]]] = [
     (r"(?:search for|look for|find me|where is|where's)\s+" + D + r"(.+)", lambda m: Intent("find", {"query": m[1]})),
     (r"(?:delete|remove|throw away|get rid of|erase)\s+" + D + r"(.+)", lambda m: Intent("trash", {"paths": _names(m[1])})),
     (r"(?:rename)\s+(.+?)\s+to\s+(.+)", lambda m: Intent("rename", {"src": m[1], "dst": m[2]})),
-    (r"(?:move)\s+(.+?)\s+(?:to|into)\s+(.+)", lambda m: Intent("move", {"src": m[1], "dst": m[2]})),
-    (r"(?:copy)\s+(.+?)\s+(?:to|into)\s+(.+)", lambda m: Intent("copy", {"src": m[1], "dst": m[2]})),
+    (r"(?:move)\s+(.+?)\s+(?:to|into)\s+" + D + r"(.+?)(?: folder)?", lambda m: Intent("move", {"src": m[1], "dst": m[2]})),
+    (r"(?:copy)\s+(.+?)\s+(?:to|into)\s+" + D + r"(.+?)(?: folder)?", lambda m: Intent("copy", {"src": m[1], "dst": m[2]})),
     (r"(?:play|show me|view|watch|listen to|read|open)\s+" + D + r"(.+)", lambda m: Intent("open", {"path": m[1]})),
 ]
 ENGLISH_RX = [(re.compile(rx + r"$", re.I), fn) for rx, fn in ENGLISH]
@@ -117,6 +117,20 @@ SENTENCE_WORD = re.compile(r"^[\w']+[?!.,]?$")
 
 def _sentence(tokens: list[str]) -> bool:
     return len(tokens) >= 4 and tokens[0].lower() in ENGLISHY and all(SENTENCE_WORD.match(t) for t in tokens)
+
+
+def _uq(v: str) -> str:
+    v = v.strip()
+    return v[1:-1] if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'" else v
+
+
+def _unquote(intent: Intent) -> Intent:
+    for k in ("path", "query", "src", "dst"):
+        if isinstance(intent.args.get(k), str):
+            intent.args[k] = _uq(intent.args[k])
+    if isinstance(intent.args.get("paths"), list):
+        intent.args["paths"] = [_uq(p) for p in intent.args["paths"]]
+    return intent
 
 
 def _names(text: str) -> list[str]:
@@ -147,12 +161,13 @@ def route(text: str, on_path: Callable[[str], object] = shutil.which) -> Intent:
     fl = first.lower()
     if fl in WIPERS or fl.startswith("mkfs"):
         return Intent("refuse", {"text": REFUSE})
-    if not SHELL_META.search(text):
+    # a quoted name like "Tom & Jerry.mp4" (what a click sends) is a name, not shell syntax
+    if not SHELL_META.search(re.sub(r'"[^"]*"|\'[^\']*\'', "", text)):
         bare = text.rstrip("?!. ") or text
         for rx, fn in ENGLISH_RX:
             m = rx.match(bare)
             if m:
-                return fn(m)
+                return _unquote(fn(m))
         if _sentence(tokens):
             return Intent("brain", {"text": text})
         hit = _command(first, fl, tokens[1:], text)

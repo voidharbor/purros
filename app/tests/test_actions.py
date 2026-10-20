@@ -177,6 +177,22 @@ class ActionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse((self.home / "d.tgz").exists())
         self.assertIn("ok, left it alone.", no.lines())
 
+    async def test_brain_hidden_delete_asks_and_respects_no(self):
+        (self.home / "Documents/victim.txt").write_text("x")
+        no = Rec(self.home, answer=False)
+        with mock.patch("purrd.actions.brain.ask", return_value={"say": "sure.", "run": "echo $(rm Documents/victim.txt)", "draw": None}):
+            await self.do("do the thing", no)
+        self.assertEqual(len(no.asked), 1)
+        self.assertTrue((self.home / "Documents/victim.txt").exists())
+
+    async def test_brain_phrasebook_change_asks_first(self):
+        no = Rec(self.home, answer=False)
+        with mock.patch("purrd.actions.brain.ask", return_value={"say": "moving it.", "run": "mv notes.txt Documents", "draw": None}):
+            await self.do("put my notes with the documents", no)
+        self.assertEqual(no.asked[0][1], "mv notes.txt Documents")
+        self.assertTrue((self.home / "notes.txt").exists())
+        self.assertIn("ok, left it alone.", no.lines())
+
     async def test_brain_trash_goes_through_phrasebook(self):
         with mock.patch("purrd.actions.brain.ask", return_value={"say": "tossing it.", "run": "trash grocery-list.txt", "draw": None}):
             await self.do("get that shopping thing out of here")
@@ -203,6 +219,32 @@ class ActionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((self.home / "shopping.txt").exists())
         await self.do("move shopping.txt to Documents")
         self.assertTrue((self.home / "Documents/shopping.txt").exists())
+
+    async def test_move_into_the_named_folder(self):
+        r = await self.do("move notes.txt into the documents folder")
+        self.assertTrue((self.home / "Documents/notes.txt").exists())
+        self.assertEqual(r.asked, [])
+
+    async def test_move_to_a_missing_folder_suggests_the_close_one(self):
+        r = await self.do("mv notes.txt Docs")
+        self.assertEqual(len(r.asked), 1)
+        self.assertIn("Documents", r.asked[0][0])
+        self.assertTrue((self.home / "Documents/notes.txt").exists())
+
+    async def test_copy_to_a_missing_folder_asks_and_respects_no(self):
+        no = Rec(self.home, answer=False)
+        await self.do("copy notes.txt backupz", no)
+        self.assertEqual(len(no.asked), 1)
+        self.assertFalse((self.home / "backupz").exists())
+        self.assertTrue((self.home / "notes.txt").exists())
+
+    async def test_copy_and_move_to_a_new_file_name(self):
+        r = await self.do("cp notes.txt notes-backup.txt")
+        self.assertTrue((self.home / "notes-backup.txt").exists())
+        await self.do("mv grocery-list.txt shopping.txt")
+        self.assertTrue((self.home / "shopping.txt").exists())
+        self.assertIn("renamed grocery-list.txt to shopping.txt.", r.lines())
+        self.assertEqual(r.asked, [])
 
     async def test_find(self):
         r = await self.do("find cabin")

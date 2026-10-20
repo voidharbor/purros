@@ -1,4 +1,5 @@
 """What PurrOS does for each intent. Everything shows up as protocol messages for the screen."""
+import difflib
 import getpass
 import glob
 import os
@@ -16,6 +17,7 @@ VERSION = "0.1"
 TRASH = ".local/share/Trash"
 BRAIN_DOWN = "my brain is napping right now (a game may be running). plain commands still work."
 PROTECTED = ("chromium", "chrome", "cage", "purrd", "python", "python3", "seatd", "init")
+BRAIN_ASKS = {"move", "copy", "rename", "mkdir", "touch", "trash"}
 HELP_TIPS = ["show all files", "open cabin", "play beach-sunset.mp4", "draw a fox asleep in a teacup",
              "edit notes.txt", "delete grocery-list.txt", "what's running", "how much space do i have",
              "theme amber", "settings"]
@@ -115,6 +117,17 @@ def _dest(ctx: Ctx, name: str) -> Path:
     return p
 
 
+def _near_folder(ctx: Ctx, name: str) -> Path | None:
+    """The folder someone probably meant: here or anywhere in home, by prefix first, then by spelling."""
+    dirs = [p for p in [*ctx.cwd.iterdir(), *fsutil._walk(ctx.home)] if p.is_dir() and not p.name.startswith(".")]
+    low = name.lower()
+    for p in dirs:
+        if p.name.lower().startswith(low):
+            return p
+    hit = difflib.get_close_matches(low, [p.name.lower() for p in dirs], n=1, cutoff=0.6)
+    return next((p for p in dirs if p.name.lower() == hit[0]), None) if hit else None
+
+
 async def _stream(ctx: Ctx, cmd: str) -> int:
     async def out(text):
         await ctx.emit({"t": "out", "text": text})
@@ -210,6 +223,18 @@ async def _copy_like(ctx, verb, src, dst):
     if s is None:
         return await _not_found(ctx, src)
     d = s.parent / dst if verb == "rename" and "/" not in dst else _dest(ctx, dst)
+    word = "cp" if verb == "copy" else "mv"
+    if verb != "rename" and not d.exists() and not Path(dst).suffix and s.suffix:
+        # a bare word that isn't there is a folder they meant, not a new name for the file
+        near = _near_folder(ctx, Path(dst).name)
+        if near:
+            if not await ctx.confirm(f"there's no {dst} here. put {s.name} in {near.name}?", f"{word} {ctx.pretty(s)} {ctx.pretty(near)}/"):
+                return await ctx.line("ok, left it alone.", "dim")
+            d = near
+        else:
+            if not await ctx.confirm(f"there's no folder called {dst}. make it and put {s.name} in it?", f"mkdir {ctx.pretty(d)} && {word} {ctx.pretty(s)} {ctx.pretty(d)}/"):
+                return await ctx.line("ok, left it alone.", "dim")
+            d.mkdir(parents=True)
     if d.is_dir():
         d = d / s.name
     if d.exists() and not await ctx.confirm(f"there's already a {d.name} there. replace it?", f"{'cp' if verb == 'copy' else 'mv'} {ctx.pretty(s)} {ctx.pretty(d)}"):
@@ -225,7 +250,7 @@ async def _copy_like(ctx, verb, src, dst):
     else:
         shutil.move(str(s), str(d))
         await ctx.ran(f"mv {ctx.pretty(s)} {ctx.pretty(d)}")
-        await ctx.line(f"renamed {s.name} to {d.name}." if verb == "rename" else f"moved {s.name} to {ctx.pretty(d.parent)}.")
+        await ctx.line(f"renamed {s.name} to {d.name}." if d.parent == s.parent else f"moved {s.name} to {ctx.pretty(d.parent)}.")
 
 
 async def a_copy(ctx, src, dst):
@@ -489,6 +514,9 @@ async def a_brain(ctx, text):
         follow = route(ans["run"])
         if follow.action in ("shell", "brain"):
             return await a_shell(ctx, ans["run"], typed=False)
+        # the brain guessed; anything that changes files shows its exact command with yes/no first
+        if follow.action in BRAIN_ASKS and not await ctx.confirm("ok to run this?", ans["run"]):
+            return await ctx.line("ok, left it alone.", "dim")
         return await do(follow, ctx)
     await ctx.mood("idle", "ready")
 

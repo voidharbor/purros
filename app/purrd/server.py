@@ -12,7 +12,20 @@ from .router import route
 from .shell import Pty
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
+LOCAL_NAMES = {"127.0.0.1", "localhost", "[::1]"}
 YES = {"yes", "y", "yeah", "yep", "sure", "ok", "okay", "please", "do it", "yes please"}
+
+
+@web.middleware
+async def local_only(req, handler):
+    """Only PurrOS's own page may talk to purrd: a local Host (no DNS rebinding) and, when a browser sends an
+    Origin, that same address. Without this any web page on the PC could drive the VM through the port relay."""
+    h = req.host or ""
+    name = h[:h.index("]") + 1] if h.startswith("[") and "]" in h else h.split(":")[0]
+    origin = req.headers.get("Origin")
+    if name not in LOCAL_NAMES or (origin and origin != "http://" + h):
+        raise web.HTTPForbidden(text="PurrOS only talks to its own screen.")
+    return await handler(req)
 
 
 async def index(_req):
@@ -95,6 +108,8 @@ class Session:
             try:
                 await self.current
             except asyncio.CancelledError:
+                if asyncio.current_task().cancelling():  # the screen went away: end the worker, not just the run
+                    raise
                 await ctx.line("(stopped)", "dim")
                 await ctx.mood("idle", "ready")
             except Exception as e:  # one bad command must not end the session
@@ -182,7 +197,7 @@ async def ws_handler(req):
 
 
 def make_app(home: Path | None = None) -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[local_only])
     app["home"] = Path(home or os.environ.get("PURROS_HOME") or Path.home())
     app.router.add_get("/", index)
     app.router.add_get("/health", health)

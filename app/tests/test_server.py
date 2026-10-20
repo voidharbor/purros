@@ -126,6 +126,37 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         await self.until(ws, lambda m: m["t"] == "term_exit" and m["sid"] == sid)
         await ws.close()
 
+    async def test_other_web_pages_cannot_open_the_socket(self):
+        import aiohttp
+        with self.assertRaises(aiohttp.WSServerHandshakeError) as cm:
+            await self.client.ws_connect("/ws", headers={"Origin": "http://evil.example"})
+        self.assertEqual(cm.exception.status, 403)
+
+    async def test_own_page_origin_is_fine(self):
+        origin = f"http://127.0.0.1:{self.client.port}"
+        ws = await self.client.ws_connect("/ws", headers={"Origin": origin})
+        self.assertEqual((await ws.receive_json(timeout=5))["t"], "hello")
+        await ws.close()
+
+    async def test_rebound_host_names_are_refused(self):
+        r = await self.client.get("/file", params={"path": str(self.home / "notes.txt")}, headers={"Host": "evil.example:7777"})
+        self.assertEqual(r.status, 403)
+        import aiohttp
+        with self.assertRaises(aiohttp.WSServerHandshakeError):
+            await self.client.ws_connect("/ws", headers={"Host": "evil.example:7777", "Origin": "http://evil.example:7777"})
+
+    async def test_closing_mid_command_leaves_no_tasks_behind(self):
+        before = len(asyncio.all_tasks())
+        ws, _ = await self.ws()
+        await ws.send_json({"t": "run", "id": "r1", "text": "sleep 30"})
+        await self.until(ws, lambda m: m["t"] == "mood" and m["mood"] == "working")
+        await ws.close()
+        for _ in range(30):
+            await asyncio.sleep(0.1)
+            if len(asyncio.all_tasks()) <= before:
+                break
+        self.assertLessEqual(len(asyncio.all_tasks()), before, [t.get_coro() for t in asyncio.all_tasks()])
+
     async def test_crash_in_action_is_reported(self):
         ws, _ = await self.ws()
         from unittest import mock

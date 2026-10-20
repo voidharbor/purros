@@ -164,6 +164,12 @@ class RouterTest(unittest.TestCase):
         self.check("ls | wc -l", "shell", {"cmd": "ls | wc -l"})
         self.check("cat notes.txt | grep mom", "shell")
 
+    def test_quoted_names_with_shell_characters_still_open(self):
+        self.check('open "Q&A.pdf"', "open", {"path": "Q&A.pdf"})
+        self.check('open "/home/purr/Tom & Jerry.mp4"', "open", {"path": "/home/purr/Tom & Jerry.mp4"})
+        self.check("open 'a|b.txt'", "open", {"path": "a|b.txt"})
+        self.check('cd "Rock & Roll"', "cd", {"path": "Rock & Roll"})
+
     def test_empty(self):
         self.check("   ", "noop")
 
