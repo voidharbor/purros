@@ -81,17 +81,32 @@
   const ANSI = /\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b[()][A-Z0-9]|\x1b[=>]|\r(?!\n)/g;
   function nearBottom() { return term.scrollHeight - term.scrollTop - term.clientHeight < 80; }
   function scrollDown(force) { if (force || nearBottom()) term.scrollTop = term.scrollHeight; }
-  function add(html, cls) {
+  /* each command gets its own block right under its echo, so an answer never lands under a command typed later.
+     purrd answers runs one at a time in order, so the oldest unfinished run is the one talking. */
+  const runs = [];
+  function add(html, cls, parent) {
     const stick = nearBottom();
     const d = document.createElement('div');
     d.className = cls || 'line';
     d.innerHTML = html;
-    out.appendChild(d);
+    (parent || (runs.length ? runs[0].el : out)).appendChild(d);
     scrollDown(stick);
     return d;
   }
   function addLine(text, cls) { return add(esc(text), 'line' + (cls ? ' ' + cls : '')); }
-  function gap() { add('', 'gap'); }
+  function gap(parent) { add('', 'gap', parent); }
+  function startRun(id, echo) {
+    if (echo) add('<span class="hi">› ' + esc(echo) + '</span>', 'line', out);
+    const el = document.createElement('div');
+    el.className = 'run';
+    out.appendChild(el);
+    runs.push({ id, el, pre: null });
+    scrollDown(true);
+  }
+  function clearScreen() {
+    out.innerHTML = ''; outBlock = null;
+    runs.forEach(r => { r.el.innerHTML = ''; r.pre = null; out.appendChild(r.el); });
+  }
   function openButton(path, label, cls) {
     return '<button class="link' + (cls ? ' ' + cls : '') + '" data-open="' + esc(path) + '" data-label="' + esc(label) + '">' + esc(label) + '</button>';
   }
@@ -194,7 +209,7 @@
     xt.onData(data => send({ t: 'term_in', sid: m.sid, data }));
     xt.textarea.addEventListener('focus', () => screen.classList.add('paneFocus'));
     xt.textarea.addEventListener('blur', () => screen.classList.remove('paneFocus'));
-    panes.set(m.sid, { xt, pane, refit });
+    panes.set(m.sid, { xt, pane, refit, title: m.title });
     pane.addEventListener('mousedown', e => { e.stopPropagation(); xt.focus(); });
     scrollDown(true);
     setTimeout(() => xt.focus(), 30);
@@ -203,9 +218,9 @@
     const p = panes.get(m.sid);
     if (!p) return;
     panes.delete(m.sid);
+    p.xt.dispose();
     p.pane.classList.add('done');
-    p.xt.options.cursorBlink = false;
-    p.xt.blur();
+    p.pane.innerHTML = '<div class="ptitle"><span>' + esc(p.title) + '</span><span class="hint">closed</span></div>';
     screen.classList.remove('paneFocus');
     focusInput();
   }
@@ -282,10 +297,12 @@
         if (m.summary) addLine(m.summary, 'dim');
         break;
       case 'out': {
-        if (!outBlock) { outBlock = add('<pre class="out"></pre>', 'line').querySelector('pre'); }
+        const r = runs[0];
+        let pre = r ? r.pre : outBlock;
+        if (!pre) { pre = add('<pre class="out"></pre>', 'line').querySelector('pre'); if (r) r.pre = pre; else outBlock = pre; }
         const stick = nearBottom();
-        outBlock.textContent += m.text.replace(ANSI, '');
-        if (outBlock.textContent.length > 300000) outBlock.textContent = '…' + outBlock.textContent.slice(-250000);
+        pre.textContent += m.text.replace(ANSI, '');
+        if (pre.textContent.length > 300000) pre.textContent = '…' + pre.textContent.slice(-250000);
         scrollDown(stick);
         break;
       }
@@ -299,16 +316,19 @@
       case 'cwd': whereEl.textContent = m.cwd; break;
       case 'settings': applySettings(m.settings); break;
       case 'panel': panel(m.settings); break;
-      case 'clear': out.innerHTML = ''; outBlock = null; break;
+      case 'clear': clearScreen(); break;
       case 'tips': add(m.items.map(t => '<button class="link" data-run="' + esc(t) + '" data-label="' + esc(t) + '">' + esc(t) + '</button>').join(''), 'tips'); break;
       case 'completions': completions(m); break;
-      case 'end':
+      case 'end': {
         busy = Math.max(0, busy - 1);
         outBlock = null;
         if (pendingAsk) { pendingAsk.box.classList.add('answered'); pendingAsk = null; }
         if (m.id === quietId && afterBootList) { afterBootList = false; addLine('what should I call you?', 'dim'); awaitingName = true; }
-        gap();
+        const i = runs.findIndex(r => r.id === m.id);
+        gap(i >= 0 ? runs[i].el : out);
+        if (i >= 0) runs.splice(i, 1);
         break;
+      }
     }
   }
 
@@ -319,22 +339,23 @@
     ws.onmessage = e => { try { onMessage(JSON.parse(e.data)); } catch (err) { console.error(err); } };
     ws.onclose = () => {
       if (connected) { connected = false; queueMood('oops', 'reconnecting'); }
-      busy = 0;
+      busy = 0; runs.length = 0;
       setTimeout(connect, 1000);
     };
   }
 
   function run(text, label) {
     const shown = label || text;
-    add('<span class="hi">› ' + esc(shown) + '</span>', 'line');
-    if (pendingAsk && /^(y|yes|n|no)$/i.test(text.trim())) { answer(/^y/i.test(text.trim())); return; }
+    if (pendingAsk && /^(y|yes|n|no)$/i.test(text.trim())) { add('<span class="hi">› ' + esc(shown) + '</span>', 'line'); answer(/^y/i.test(text.trim())); return; }
     if (awaitingName) {
       awaitingName = false;
       const w = text.trim().replace(/^(i'?m|i am|it'?s)\s+/i, '');
       if (/^[a-z][a-z'-]{0,23}$/i.test(w) && !NOT_NAMES.has(w.toLowerCase())) text = 'call me ' + w;
     }
     busy++;
-    send({ t: 'run', id: 'r' + (++runSeq), text });
+    const id = 'r' + (++runSeq);
+    startRun(id, shown);
+    send({ t: 'run', id, text });
   }
 
   /* a command PurrOS runs by itself: no echoed prompt line */
@@ -342,6 +363,7 @@
   function runQuiet(text) {
     busy++;
     quietId = 'r' + (++runSeq);
+    startRun(quietId, null);
     send({ t: 'run', id: quietId, text });
   }
 
@@ -383,7 +405,7 @@
       e.preventDefault();
       const text = input.value;
       input.value = ''; drawInput();
-      if (!text.trim()) { add('<span class="hi">›</span>', 'line'); return; }
+      if (!text.trim()) { add('<span class="hi">›</span>', 'line', out); return; }
       if (history[history.length - 1] !== text) history.push(text);
       histPos = -1;
       run(text);
@@ -408,7 +430,7 @@
       send({ t: 'stop' });
     } else if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
       e.preventDefault();
-      out.innerHTML = ''; outBlock = null;
+      clearScreen();
     } else if (e.key === 'Escape') {
       $('#viewer').hidden = true;
     } else if (e.key === 'PageUp' || e.key === 'PageDown') {
