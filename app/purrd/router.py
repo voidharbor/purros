@@ -107,6 +107,18 @@ ENGLISH: list[tuple[str, Callable[[re.Match], Intent]]] = [
 ENGLISH_RX = [(re.compile(rx + r"$", re.I), fn) for rx, fn in ENGLISH]
 
 
+# Command names that are also everyday English. "which folder is biggest" is a question, "which python3" a command.
+ENGLISHY = {"which", "who", "what", "make", "find", "sort", "test", "time", "watch", "look", "tell", "show", "say",
+            "read", "wait", "sleep", "more", "less", "last", "head", "tail", "cut", "join", "split", "paste", "file",
+            "type", "link", "touch", "top", "free", "install", "info", "date", "w", "id", "at", "nice", "tree", "can",
+            "help", "man", "script", "units", "write", "mail", "open", "start", "stop", "see", "history", "kill", "clear"}
+SENTENCE_WORD = re.compile(r"^[\w']+[?!.,]?$")
+
+
+def _sentence(tokens: list[str]) -> bool:
+    return len(tokens) >= 4 and tokens[0].lower() in ENGLISHY and all(SENTENCE_WORD.match(t) for t in tokens)
+
+
 def _names(text: str) -> list[str]:
     words = text.split()
     return words if len(words) > 1 and all("." in w for w in words) else [text.strip()]
@@ -141,6 +153,8 @@ def route(text: str, on_path: Callable[[str], object] = shutil.which) -> Intent:
             m = rx.match(bare)
             if m:
                 return fn(m)
+        if _sentence(tokens):
+            return Intent("brain", {"text": text})
         hit = _command(first, fl, tokens[1:], text)
         if hit:
             return hit

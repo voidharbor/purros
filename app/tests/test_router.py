@@ -4,7 +4,7 @@ from purrd.router import Intent, route
 
 
 def r(text):
-    return route(text, on_path=lambda w: w in {"echo", "ls", "cat", "uname", "python3", "git", "nano", "vim", "htop"})
+    return route(text, on_path=lambda w: w in {"echo", "ls", "cat", "uname", "python3", "git", "nano", "vim", "htop", "which", "who", "time", "top", "find", "free"})
 
 
 class RouterTest(unittest.TestCase):
@@ -139,6 +139,17 @@ class RouterTest(unittest.TestCase):
         self.check("git status", "shell", {"cmd": "git status"})
         self.check("how do I compress a folder", "brain", {"text": "how do I compress a folder"})
         self.check("tell me a joke", "brain")
+
+    def test_sentences_starting_with_command_names_go_to_brain(self):
+        for t in ["which folder is taking up the most space", "who made this computer", "time to clean up my files",
+                  "top 10 biggest files please", "find out why my computer is slow today", "free up some space for me"]:
+            self.check(t, "brain", {"text": t})
+
+    def test_short_commands_with_english_names_stay_commands(self):
+        self.check("which python3", "shell", {"cmd": "which python3"})
+        self.check("top", "top")
+        self.check("time", "date")
+        self.check("find cabin", "find", {"query": "cabin"})
 
     def test_refuse_disk_wipers(self):
         for t in ["format c:", "diskpart", "fdisk /dev/vda"]:

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PurrOS</title>
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<link rel="stylesheet" href="/static/purr.css">
+</head>
+<body>
+<div class="screen" id="screen" data-look="phosphor" data-glow="light" data-font="pixel">
+  <div class="boot" id="boot" aria-hidden="true">
+    <canvas id="bootCat" width="16" height="16"></canvas>
+    <div class="boot-name glow">PurrOS</div>
+    <div class="boot-word glow" id="bootWord">waking up</div>
+  </div>
+  <header class="bar glow">
+    <canvas id="cat" width="16" height="16" aria-hidden="true"></canvas>
+    <span class="name">PurrOS</span>
+    <span class="where" id="where">~</span>
+    <span class="right"><span id="status">ready</span><span id="clock"></span></span>
+  </header>
+  <main class="term glow" id="term">
+    <div id="out"></div>
+    <div class="line prompt" id="prompt"><span class="hi">›</span><span id="before"></span><span class="cursor" id="cursor"> </span><span id="after"></span></div>
+  </main>
+  <input id="input" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="type here">
+  <div class="viewer" id="viewer" hidden><img id="viewerImg" alt=""></div>
+</div>
+<script src="/static/vendor/xterm.js"></script>
+<script src="/static/vendor/addon-fit.js"></script>
+<script src="/static/cat.js"></script>
+<script src="/static/purr.js"></script>
+</body>
+</html>

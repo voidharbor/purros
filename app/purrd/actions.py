@@ -497,7 +497,7 @@ async def a_help(ctx):
     await ctx.line("plain words work. a few things to try:")
     await ctx.emit({"t": "tips", "items": HELP_TIPS})
     await ctx.line("windows, mac and linux commands work too: dir, ls, ipconfig, open, cls.", "dim")
-    await ctx.line("anything underlined can be tapped. ctrl+c stops a command.", "dim")
+    await ctx.line("tap anything in a list to open it. ctrl+c stops a command.", "dim")
 
 
 async def a_clear(ctx):

@@ -30,7 +30,9 @@ async def draw(prompt: str, cfg: dict) -> bytes:
                 if r.status != 200:
                     raise PicturesDown((await r.text())[:300])
                 return await r.read()
-    except (aiohttp.ClientError, TimeoutError, KeyError, IndexError) as e:
+    except (aiohttp.ClientConnectionError, TimeoutError) as e:
+        raise PicturesDown("the picture maker isn't answering (is the PC asleep, or a game running?)") from e
+    except (aiohttp.ClientError, KeyError, IndexError) as e:
         raise PicturesDown(str(e) or type(e).__name__) from e
 
 

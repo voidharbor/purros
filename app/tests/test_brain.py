@@ -101,7 +101,7 @@ class PicturesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(s.seen[0][0], "/v1/images/generations")
 
     async def test_down(self):
-        with self.assertRaises(pictures.PicturesDown):
+        with self.assertRaisesRegex(pictures.PicturesDown, "the picture maker isn't answering"):
             await pictures.draw("x", {"kind": "purr-host", "url": "http://127.0.0.1:9", "quality": "careful"})
 
     async def test_host_error_text(self):
