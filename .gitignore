@@ -4,3 +4,4 @@ vm/out/
 vm/cache/
 app/static/vendor/
 *.pyc
+.superpowers/
