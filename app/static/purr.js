@@ -10,6 +10,8 @@
   let ws = null, settings = null, connected = false, firstHello = true;
   let runSeq = 0, busy = 0, outBlock = null, progressEl = null, progressTimer = null;
   let pendingAsk = null, awaitingName = false;
+  /* a first word that is really a command, not a name */
+  const NOT_NAMES = new Set(['ls', 'dir', 'help', 'clear', 'cls', 'settings', 'pwd', 'top', 'htop', 'history', 'about', 'date', 'time', 'whoami', 'ps', 'df', 'free', 'exit', 'yes', 'no', 'hi', 'hello', 'hey', 'menu', 'files', 'cd', 'gci', 'ipconfig', 'ifconfig', 'tasklist', 'systeminfo', 'uname', 'neofetch']);
   const history = [], panes = new Map();
   let histPos = -1, draft = '';
   let completeId = 0;
@@ -326,7 +328,8 @@
     if (pendingAsk && /^(y|yes|n|no)$/i.test(text.trim())) { answer(/^y/i.test(text.trim())); return; }
     if (awaitingName) {
       awaitingName = false;
-      if (/^[a-z][a-z'-]{0,23}$/i.test(text.trim())) text = 'call me ' + text.trim();
+      const w = text.trim().replace(/^(i'?m|i am|it'?s)\s+/i, '');
+      if (/^[a-z][a-z'-]{0,23}$/i.test(w) && !NOT_NAMES.has(w.toLowerCase())) text = 'call me ' + w;
     }
     busy++;
     send({ t: 'run', id: 'r' + (++runSeq), text });
